@@ -18,6 +18,10 @@ DEFAULT_BATCH_SIZE = 32
 DEFAULT_NUM_WORKERS = 0
 DEFAULT_SEED = 42
 SPLIT_ORDER: Tuple[str, ...] = ("train", "val", "test")
+TRAIN_CROP_SCALE: Tuple[float, float] = (0.9, 1.0)
+TRAIN_HORIZONTAL_FLIP_PROBABILITY = 0.5
+INPUT_IMAGE_SIZE = 224
+EVAL_RESIZE_SIZE = 256
 
 
 class FilteredImageFolderSubset(Dataset):
@@ -60,12 +64,12 @@ def get_transforms() -> Dict[str, v2.Compose]:
     train_transform = v2.Compose(
         [
             v2.RandomResizedCrop(
-                size=224,
-                scale=(0.9, 1.0),
+                size=INPUT_IMAGE_SIZE,
+                scale=TRAIN_CROP_SCALE,
                 interpolation=InterpolationMode.BICUBIC,
                 antialias=True,
             ),
-            v2.RandomHorizontalFlip(p=0.5),
+            v2.RandomHorizontalFlip(p=TRAIN_HORIZONTAL_FLIP_PROBABILITY),
             v2.ToImage(),
             v2.ToDtype(dtype=torch.float32, scale=True),
             normalize,
@@ -73,8 +77,8 @@ def get_transforms() -> Dict[str, v2.Compose]:
     )
     eval_transform = v2.Compose(
         [
-            v2.Resize(size=256, interpolation=InterpolationMode.BICUBIC, antialias=True),
-            v2.CenterCrop(size=224),
+            v2.Resize(size=EVAL_RESIZE_SIZE, interpolation=InterpolationMode.BICUBIC, antialias=True),
+            v2.CenterCrop(size=INPUT_IMAGE_SIZE),
             v2.ToImage(),
             v2.ToDtype(dtype=torch.float32, scale=True),
             normalize,
@@ -82,6 +86,32 @@ def get_transforms() -> Dict[str, v2.Compose]:
     )
 
     return {"train": train_transform, "val": eval_transform, "test": eval_transform}
+
+
+def get_preprocessing_config() -> Dict[str, object]:
+    weights = EfficientNet_B0_Weights.DEFAULT
+    pretrained_transforms = weights.transforms()
+
+    return {
+        "weights_enum": "EfficientNet_B0_Weights.DEFAULT",
+        "input_dtype": "torch.float32",
+        "input_scale_range": [0.0, 1.0],
+        "normalization_mean": list(pretrained_transforms.mean),
+        "normalization_std": list(pretrained_transforms.std),
+        "train": {
+            "random_resized_crop_size": INPUT_IMAGE_SIZE,
+            "random_resized_crop_scale": list(TRAIN_CROP_SCALE),
+            "horizontal_flip_probability": TRAIN_HORIZONTAL_FLIP_PROBABILITY,
+            "interpolation": InterpolationMode.BICUBIC.name,
+            "antialias": True,
+        },
+        "eval": {
+            "resize_size": EVAL_RESIZE_SIZE,
+            "center_crop_size": INPUT_IMAGE_SIZE,
+            "interpolation": InterpolationMode.BICUBIC.name,
+            "antialias": True,
+        },
+    }
 
 
 def load_base_dataset(data_dir: str | Path = "data/train_images") -> ImageFolder:
