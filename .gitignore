@@ -1,5 +1,6 @@
-# Data folder
+# Data folders
 data/
+dataset/
 
 # BMAD method
 .agents/
