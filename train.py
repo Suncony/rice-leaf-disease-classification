@@ -21,7 +21,7 @@ from prepare_data import (
     get_preprocessing_config,
 )
 
-DEFAULT_DATA_DIR = Path("data/train_images")
+DEFAULT_DATA_DIR = Path("dataset")
 DEFAULT_CHECKPOINT_DIR = Path("checkpoints")
 DEFAULT_CHECKPOINT_PATH = DEFAULT_CHECKPOINT_DIR / "trained_model.pth"
 DEFAULT_EPOCHS = 12
