@@ -222,11 +222,13 @@ def log_epoch_metrics(
     train_accuracy: float,
     val_loss: float,
     val_accuracy: float,
+    best: bool,
 ) -> None:
     print(
         f"Epoch {epoch_index}/{total_epochs} | "
         f"train_loss={train_loss:.4f} train_acc={train_accuracy:.4f} | "
-        f"val_loss={val_loss:.4f} val_acc={val_accuracy:.4f}"
+        f"val_loss={val_loss:.4f} val_acc={val_accuracy:.4f} | "
+        f"best={'true' if best else 'false'}"
     )
 
 
@@ -259,6 +261,7 @@ def train_model(args: argparse.Namespace) -> None:
     best_state_dict = copy.deepcopy(model.state_dict())
 
     for epoch_index in range(1, args.epochs + 1):
+        best = False   
         train_loss, train_accuracy = run_epoch(
             model=model,
             dataloader=dataloaders["train"],
@@ -279,9 +282,9 @@ def train_model(args: argparse.Namespace) -> None:
         history["train_accuracy"].append(train_accuracy)
         history["val_loss"].append(val_loss)
         history["val_accuracy"].append(val_accuracy)
-        log_epoch_metrics(epoch_index, args.epochs, train_loss, train_accuracy, val_loss, val_accuracy)
 
         if val_accuracy > best_val_accuracy:
+            best = True
             best_val_accuracy = val_accuracy
             best_state_dict = copy.deepcopy(model.state_dict())
             model.load_state_dict(best_state_dict)
@@ -293,6 +296,8 @@ def train_model(args: argparse.Namespace) -> None:
                 args,
                 preprocessing_config,
             )
+        
+        log_epoch_metrics(epoch_index, args.epochs, train_loss, train_accuracy, val_loss, val_accuracy, best)
 
     model.load_state_dict(best_state_dict)
     save_checkpoint(
