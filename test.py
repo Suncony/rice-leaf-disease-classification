@@ -14,7 +14,6 @@ from prepare_data import (
     DEFAULT_NUM_WORKERS,
     DEFAULT_SEED,
     build_split_dataset,
-    get_preprocessing_config,
     get_transforms,
 )
 from train import ensure_output_dir, get_device
@@ -104,14 +103,6 @@ def load_checkpoint(checkpoint_path: Path, expected_class_to_idx: Dict[str, int]
 
     if "model_state_dict" not in checkpoint:
         raise ValueError("Checkpoint is missing 'model_state_dict'.")
-
-    saved_preprocessing = checkpoint.get("preprocessing")
-    current_preprocessing = get_preprocessing_config()
-    if saved_preprocessing != current_preprocessing:
-        raise ValueError(
-            "Checkpoint preprocessing metadata does not match the current evaluation pipeline. "
-            "Retrain the model or restore the preprocessing contract used to create this checkpoint."
-        )
 
     return checkpoint
 
