@@ -11,7 +11,7 @@ from torchvision.datasets import ImageFolder
 from torchvision.models import EfficientNet_B0_Weights
 from torchvision.transforms import InterpolationMode, v2
 
-ALLOWED_CLASSES: Tuple[str, ...] = ("normal", "blast", "brown_spot")
+ALLOWED_CLASSES: Tuple[str, ...] = ("blast", "brown_spot", "normal")
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_NUM_WORKERS = 0
 DEFAULT_SEED = 42
@@ -25,6 +25,58 @@ TRAIN_CROP_SCALE: Tuple[float, float] = (0.9, 1.0)
 TRAIN_HORIZONTAL_FLIP_PROBABILITY = 0.5
 INPUT_IMAGE_SIZE = 224
 EVAL_RESIZE_SIZE = 256
+DEFAULT_TRAIN_TRANSFORM_PRESET = 1
+PRETRAINED_TRANSFORMS = EfficientNet_B0_Weights.DEFAULT.transforms()
+NORMALIZATION_MEAN: Tuple[float, ...] = tuple(PRETRAINED_TRANSFORMS.mean)
+NORMALIZATION_STD: Tuple[float, ...] = tuple(PRETRAINED_TRANSFORMS.std)
+TRAIN_TRANSFORM_PRESETS: Dict[int, Dict[str, object]] = {
+    1: {
+        "name": "baseline",
+        "transform": v2.Compose(
+            [
+                v2.RandomResizedCrop(
+                    size=INPUT_IMAGE_SIZE,
+                    scale=TRAIN_CROP_SCALE,
+                    interpolation=InterpolationMode.BICUBIC,
+                    antialias=True,
+                ),
+                v2.RandomHorizontalFlip(p=TRAIN_HORIZONTAL_FLIP_PROBABILITY),
+                v2.ToImage(),
+                v2.ToDtype(dtype=torch.float32, scale=True),
+                v2.Normalize(mean=NORMALIZATION_MEAN, std=NORMALIZATION_STD),
+            ]
+        ),
+    },
+    2: {
+        "name": "augmented",
+        "transform": v2.Compose(
+            [
+                v2.RandomResizedCrop(
+                    size=INPUT_IMAGE_SIZE,
+                    scale=TRAIN_CROP_SCALE,
+                    interpolation=InterpolationMode.BICUBIC,
+                    antialias=True,
+                ),
+                v2.RandomHorizontalFlip(p=TRAIN_HORIZONTAL_FLIP_PROBABILITY),
+                v2.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.02),
+                v2.RandomRotation(degrees=10),
+                v2.RandomAffine(degrees=0, translate=(0.05, 0.05), scale=(0.95, 1.05)),
+                v2.ToImage(),
+                v2.ToDtype(dtype=torch.float32, scale=True),
+                v2.Normalize(mean=NORMALIZATION_MEAN, std=NORMALIZATION_STD),
+            ]
+        ),
+    },
+}
+EVAL_TRANSFORM = v2.Compose(
+    [
+        v2.Resize(size=EVAL_RESIZE_SIZE, interpolation=InterpolationMode.BICUBIC, antialias=True),
+        v2.CenterCrop(size=INPUT_IMAGE_SIZE),
+        v2.ToImage(),
+        v2.ToDtype(dtype=torch.float32, scale=True),
+        v2.Normalize(mean=NORMALIZATION_MEAN, std=NORMALIZATION_STD),
+    ]
+)
 
 
 class FilteredImageFolderSubset(Dataset):
@@ -59,62 +111,42 @@ class FilteredImageFolderSubset(Dataset):
         return image, target
 
 
+# Return the currently selected training augmentation preset or fail clearly if it is invalid.
+def get_active_train_preset() -> Dict[str, object]:
+    preset = TRAIN_TRANSFORM_PRESETS.get(DEFAULT_TRAIN_TRANSFORM_PRESET)
+    if preset is None:
+        supported = ", ".join(str(preset_id) for preset_id in sorted(TRAIN_TRANSFORM_PRESETS))
+        raise ValueError(
+            f"Unsupported training transform preset '{DEFAULT_TRAIN_TRANSFORM_PRESET}'. "
+            f"Supported presets: {supported}"
+        )
+    return preset
+
+
 # Build the training and evaluation transforms from the pretrained EfficientNet contract.
 def get_transforms() -> Dict[str, v2.Compose]:
-    weights = EfficientNet_B0_Weights.DEFAULT
-    pretrained_transforms = weights.transforms()
-    normalize = v2.Normalize(mean=pretrained_transforms.mean, std=pretrained_transforms.std)
-
-    train_transform = v2.Compose(
-        [
-            v2.RandomResizedCrop(
-                size=INPUT_IMAGE_SIZE,
-                scale=TRAIN_CROP_SCALE,
-                interpolation=InterpolationMode.BICUBIC,
-                antialias=True,
-            ),
-            v2.RandomHorizontalFlip(p=TRAIN_HORIZONTAL_FLIP_PROBABILITY),
-            v2.ToImage(),
-            v2.ToDtype(dtype=torch.float32, scale=True),
-            normalize,
-        ]
-    )
-    eval_transform = v2.Compose(
-        [
-            v2.Resize(size=EVAL_RESIZE_SIZE, interpolation=InterpolationMode.BICUBIC, antialias=True),
-            v2.CenterCrop(size=INPUT_IMAGE_SIZE),
-            v2.ToImage(),
-            v2.ToDtype(dtype=torch.float32, scale=True),
-            normalize,
-        ]
-    )
-
-    return {"train": train_transform, "val": eval_transform, "test": eval_transform}
+    train_preset = get_active_train_preset()
+    train_transform = train_preset["transform"]
+    if not isinstance(train_transform, v2.Compose):
+        raise ValueError(
+            f"Training transform preset '{DEFAULT_TRAIN_TRANSFORM_PRESET}' is missing a valid transform."
+        )
+    return {"train": train_transform, "val": EVAL_TRANSFORM, "test": EVAL_TRANSFORM}
 
 
 # Expose the preprocessing metadata that training checkpoints need to stay self-describing.
 def get_preprocessing_config() -> Dict[str, object]:
-    weights = EfficientNet_B0_Weights.DEFAULT
-    pretrained_transforms = weights.transforms()
+    train_preset = get_active_train_preset()
 
     return {
         "weights_enum": "EfficientNet_B0_Weights.DEFAULT",
         "input_dtype": "torch.float32",
         "input_scale_range": [0.0, 1.0],
-        "normalization_mean": list(pretrained_transforms.mean),
-        "normalization_std": list(pretrained_transforms.std),
+        "normalization_mean": list(NORMALIZATION_MEAN),
+        "normalization_std": list(NORMALIZATION_STD),
         "train": {
-            "random_resized_crop_size": INPUT_IMAGE_SIZE,
-            "random_resized_crop_scale": list(TRAIN_CROP_SCALE),
-            "horizontal_flip_probability": TRAIN_HORIZONTAL_FLIP_PROBABILITY,
-            "interpolation": InterpolationMode.BICUBIC.name,
-            "antialias": True,
-        },
-        "eval": {
-            "resize_size": EVAL_RESIZE_SIZE,
-            "center_crop_size": INPUT_IMAGE_SIZE,
-            "interpolation": InterpolationMode.BICUBIC.name,
-            "antialias": True,
+            "active_preset_id": DEFAULT_TRAIN_TRANSFORM_PRESET,
+            "active_preset_name": train_preset["name"],
         },
     }
 
