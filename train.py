@@ -24,7 +24,8 @@ from prepare_data import (
 DEFAULT_DATA_DIR = Path("dataset")
 DEFAULT_CHECKPOINT_DIR = Path("checkpoints")
 DEFAULT_CHECKPOINT_PATH = DEFAULT_CHECKPOINT_DIR / "trained_model.pth"
-DEFAULT_EPOCHS = 20
+DEFAULT_HYPERPARAMS_REPORT_PATH = DEFAULT_CHECKPOINT_DIR / "hyperparams.txt"
+DEFAULT_EPOCHS = 30
 DEFAULT_LEARNING_RATE = 1e-3
 DEFAULT_WEIGHT_DECAY = 1e-4
 DEFAULT_UNFREEZE_BLOCKS = 1
@@ -232,17 +233,65 @@ def log_epoch_metrics(
     )
 
 
+# Build the active training setup report before the first epoch so runs are easy to audit later.
+def build_training_configuration_report(
+    args: argparse.Namespace,
+    class_to_idx: Dict[str, int],
+    preprocessing_config: Dict[str, object],
+) -> str:
+    train_preset = preprocessing_config["train"]
+    lines = ["Current hyperparameters:"]
+
+    for name, value in vars(args).items():
+        lines.append(f"  {name}: {value}")
+    lines.append(f"  unfreeze_blocks: {DEFAULT_UNFREEZE_BLOCKS}")
+    lines.append(f"  class_labels: {list(class_to_idx.keys())}")
+    lines.append(
+        "  train_transform_preset: "
+        f"{train_preset['active_preset_id']} ({train_preset['active_preset_name']})"
+    )
+    return "\n".join(lines)
+
+
+# Persist the training setup report so each run keeps a readable record next to its checkpoint.
+def save_training_configuration_report(
+    report_path: Path,
+    args: argparse.Namespace,
+    class_to_idx: Dict[str, int],
+    preprocessing_config: Dict[str, object],
+) -> None:
+    report = build_training_configuration_report(args, class_to_idx, preprocessing_config)
+    report_path.write_text(f"{report}\n", encoding="utf-8")
+
+
+# Print the saved training setup report so the run still announces its configuration in the terminal.
+def log_training_configuration(
+    args: argparse.Namespace,
+    class_to_idx: Dict[str, int],
+    preprocessing_config: Dict[str, object],
+) -> None:
+    print(build_training_configuration_report(args, class_to_idx, preprocessing_config))
+
+
 # Execute the full transfer-learning workflow and persist the best validation result.
 def train_model(args: argparse.Namespace) -> None:
     set_seed(args.seed)
     device = get_device()
     checkpoint_dir = args.checkpoint_dir
     checkpoint_path = checkpoint_dir / DEFAULT_CHECKPOINT_PATH.name
+    hyperparams_report_path = checkpoint_dir / DEFAULT_HYPERPARAMS_REPORT_PATH.name
     ensure_output_dir(checkpoint_dir)
 
     print(f"Using device: {device}")
     dataloaders, class_to_idx = load_training_data(args)
     preprocessing_config = get_preprocessing_config()
+    save_training_configuration_report(
+        hyperparams_report_path,
+        args,
+        class_to_idx,
+        preprocessing_config,
+    )
+    log_training_configuration(args, class_to_idx, preprocessing_config)
     model = build_model(num_classes=len(class_to_idx)).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer, scheduler = build_optimization_components(
@@ -258,6 +307,7 @@ def train_model(args: argparse.Namespace) -> None:
         "val_accuracy": [],
     }
     best_val_accuracy = float("-inf")
+    best_epoch: int | None = None
     best_state_dict = copy.deepcopy(model.state_dict())
 
     for epoch_index in range(1, args.epochs + 1):
@@ -286,6 +336,7 @@ def train_model(args: argparse.Namespace) -> None:
         if val_accuracy > best_val_accuracy:
             best = True
             best_val_accuracy = val_accuracy
+            best_epoch = epoch_index
             best_state_dict = copy.deepcopy(model.state_dict())
             model.load_state_dict(best_state_dict)
             save_checkpoint(
@@ -310,7 +361,8 @@ def train_model(args: argparse.Namespace) -> None:
     )
     save_training_plots(history, checkpoint_dir)
 
-    print(f"Saved best checkpoint to {checkpoint_path}")
+    saved_epoch = best_epoch if best_epoch is not None else args.epochs
+    print(f"Saved best checkpoint from epoch {saved_epoch} to {checkpoint_path}")
     print(f"Saved loss graph to {checkpoint_dir / 'loss_graph.png'}")
     print(f"Saved accuracy graph to {checkpoint_dir / 'accuracy_graph.png'}")
 
