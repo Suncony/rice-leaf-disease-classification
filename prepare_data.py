@@ -11,7 +11,9 @@ from torchvision.datasets import ImageFolder
 from torchvision.models import EfficientNet_B0_Weights
 from torchvision.transforms import InterpolationMode, v2
 
-# Possible classes are the names of `data` folders. `tuple(p.name for p in Path("data").iterdir() if p.is_dir())` for all classes.
+# Class order for idx translation. Keep it the same as the model you're evaluating.
+# Possible classes are the folder names inside `data`.
+# Use `tuple(p.name for p in Path("data").iterdir() if p.is_dir())` for all classes.
 ALLOWED_CLASSES: Tuple[str, ...] = tuple(p.name for p in Path("data").iterdir() if p.is_dir())
 
 DEFAULT_BATCH_SIZE = 32
@@ -33,6 +35,9 @@ PRETRAINED_TRANSFORMS = EfficientNet_B0_Weights.DEFAULT.transforms()
 NORMALIZATION_MEAN: Tuple[float, ...] = tuple(PRETRAINED_TRANSFORMS.mean)
 NORMALIZATION_STD: Tuple[float, ...] = tuple(PRETRAINED_TRANSFORMS.std)
 
+# Change training transformations here.
+# 1 for unaugmented transformations.
+# 2 for augmented transformations.
 DEFAULT_TRAIN_TRANSFORM_PRESET = 2
 TRAIN_TRANSFORM_PRESETS: Dict[int, Dict[str, object]] = {
     1: {
