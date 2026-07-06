@@ -13,23 +13,27 @@ from torchvision.transforms import InterpolationMode, v2
 
 # Possible classes are the names of `data` folders
 ALLOWED_CLASSES: Tuple[str, ...] = ("bacterial_leaf_blight", "bacterial_leaf_streak", "blast", "brown_spot", "normal")
+
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_NUM_WORKERS = 0
 DEFAULT_SEED = 42
+
 SPLIT_ORDER: Tuple[str, ...] = ("train", "val", "test")
 SPLIT_ROOTS: Dict[str, str] = {
     "train": "train_images",
     "val": "val_images",
     "test": "test_images",
 }
+
 TRAIN_CROP_SCALE: Tuple[float, float] = (0.9, 1.0)
 TRAIN_HORIZONTAL_FLIP_PROBABILITY = 0.5
 INPUT_IMAGE_SIZE = 224
 EVAL_RESIZE_SIZE = 256
-DEFAULT_TRAIN_TRANSFORM_PRESET = 1
 PRETRAINED_TRANSFORMS = EfficientNet_B0_Weights.DEFAULT.transforms()
 NORMALIZATION_MEAN: Tuple[float, ...] = tuple(PRETRAINED_TRANSFORMS.mean)
 NORMALIZATION_STD: Tuple[float, ...] = tuple(PRETRAINED_TRANSFORMS.std)
+
+DEFAULT_TRAIN_TRANSFORM_PRESET = 2
 TRAIN_TRANSFORM_PRESETS: Dict[int, Dict[str, object]] = {
     1: {
         "name": "baseline",
