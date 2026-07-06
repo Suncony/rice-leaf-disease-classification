@@ -11,8 +11,8 @@ from torchvision.datasets import ImageFolder
 from torchvision.models import EfficientNet_B0_Weights
 from torchvision.transforms import InterpolationMode, v2
 
-# Possible classes are the names of `data` folders
-ALLOWED_CLASSES: Tuple[str, ...] = ("bacterial_leaf_blight", "bacterial_leaf_streak", "blast", "brown_spot", "normal")
+# Possible classes are the names of `data` folders. `tuple(p.name for p in Path("data").iterdir() if p.is_dir())` for all classes.
+ALLOWED_CLASSES: Tuple[str, ...] = tuple(p.name for p in Path("data").iterdir() if p.is_dir())
 
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_NUM_WORKERS = 0
