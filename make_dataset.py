@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import random
 import shutil
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Set, Tuple
 
 RAW_DATA_DIR = Path("data")
 DATASET_DIR = Path("dataset")
@@ -30,18 +31,38 @@ def list_class_directories(data_dir: Path) -> List[Path]:
     return class_directories
 
 
-# Collect image files from one class directory using a stable ordering before shuffling.
+# Compute a stable content hash so duplicate images can be detected even when filenames differ.
+def hash_file_contents(file_path: Path) -> str:
+    digest = hashlib.sha256()
+    with file_path.open("rb") as file_handle:
+        for chunk in iter(lambda: file_handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+# Collect one deterministic representative per duplicate-content group in a class directory.
 def list_image_files(class_dir: Path) -> List[Path]:
     image_files = sorted(
         path for path in class_dir.iterdir() if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
     )
-    if len(image_files) < len(SPLIT_ORDER):
+    unique_image_files: List[Path] = []
+    seen_hashes: Set[str] = set()
+
+    for image_path in image_files:
+        image_hash = hash_file_contents(image_path)
+        if image_hash in seen_hashes:
+            continue
+
+        seen_hashes.add(image_hash)
+        unique_image_files.append(image_path)
+
+    if len(unique_image_files) < len(SPLIT_ORDER):
         raise ValueError(
-            f"Class '{class_dir.name}' has only {len(image_files)} image(s). "
-            "At least 3 are required to keep train, val, and test non-empty."
+            f"Class '{class_dir.name}' has only {len(unique_image_files)} unique image(s) after deduplication. "
+            "At least 3 unique images are required to keep train, val, and test non-empty."
         )
 
-    return image_files
+    return unique_image_files
 
 
 # Turn a class image count into non-empty train, validation, and test split sizes.
