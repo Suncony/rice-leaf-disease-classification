@@ -231,6 +231,19 @@ def format_matrix(matrix: torch.Tensor, class_names: List[str], decimal_places: 
     return "\n".join(formatted_rows)
 
 
+# Switch matrix labels to compact numeric tokens when full class names would make the table too wide.
+def should_use_compact_matrix_labels(class_names: List[str]) -> bool:
+    return any(len(class_name) > 12 for class_name in class_names)
+
+
+# Map compact numeric labels back to the original class names in the text report.
+def format_class_name_legend(class_names: List[str]) -> str:
+    legend_lines = ["Class label legend:"]
+    for index, class_name in enumerate(class_names):
+        legend_lines.append(f"[{index}] {class_name}")
+    return "\n".join(legend_lines)
+
+
 # Convert the computed metrics and matrices into a report suitable for the terminal and text file output.
 def format_metrics_report(
     metrics: Dict[str, object],
@@ -238,35 +251,40 @@ def format_metrics_report(
     class_names: List[str],
 ) -> str:
     lines = [f"Overall accuracy: {metrics['overall_accuracy']:.4f}", "", "Per-class metrics:"]
-    lines.append(f"{'Class':<12} {'Precision':>10} {'Recall':>10} {'F1 Score':>10} {'Support':>10}")
 
     per_class_metrics = metrics["per_class_metrics"]
     if not isinstance(per_class_metrics, list):
         raise ValueError("Expected per-class metrics to be a list.")
 
-    for class_metrics in per_class_metrics:
+    for class_index, class_metrics in enumerate(per_class_metrics):
         if not isinstance(class_metrics, dict):
             raise ValueError("Expected each class metric entry to be a dictionary.")
+        lines.append(f"[{class_index}] {str(class_metrics['class_name'])}")
         lines.append(
-            f"{str(class_metrics['class_name']):<12} "
-            f"{float(class_metrics['precision']):>10.4f} "
-            f"{float(class_metrics['recall']):>10.4f} "
-            f"{float(class_metrics['f1_score']):>10.4f} "
-            f"{int(float(class_metrics['support'])):>10}"
+            "    "
+            f"Precision: {float(class_metrics['precision']):.4f} | "
+            f"Recall: {float(class_metrics['recall']):.4f} | "
+            f"F1 Score: {float(class_metrics['f1_score']):.4f} | "
+            f"Support: {int(float(class_metrics['support']))}"
         )
 
     normalized_confusion_matrix = metrics["normalized_confusion_matrix"]
     if not isinstance(normalized_confusion_matrix, torch.Tensor):
         raise ValueError("Expected normalized confusion matrix to be a tensor.")
 
+    matrix_class_names = class_names
+    if should_use_compact_matrix_labels(class_names):
+        lines.extend(["", format_class_name_legend(class_names)])
+        matrix_class_names = [f"[{index}]" for index in range(len(class_names))]
+
     lines.extend(
         [
             "",
             "Raw confusion matrix:",
-            format_matrix(raw_confusion_matrix, class_names, decimal_places=0),
+            format_matrix(raw_confusion_matrix, matrix_class_names, decimal_places=0),
             "",
             "Normalized confusion matrix:",
-            format_matrix(normalized_confusion_matrix, class_names, decimal_places=4),
+            format_matrix(normalized_confusion_matrix, matrix_class_names, decimal_places=4),
         ]
     )
     return "\n".join(lines)
