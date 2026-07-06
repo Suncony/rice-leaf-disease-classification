@@ -6,9 +6,11 @@ a rice leaf disease classification model made with EfficientNet-B0 backbone for 
 
 ## how to use?
 
+- run `pip install -r requirements.txt` to install necessary libraries
+
 - get the dataset from [this kaggle page](https://www.kaggle.com/competitions/paddy-disease-classification)
 
-- inside `training_images`, move all folders inside the `data` folder
+- move all folders inside `training_images` to a new folder named `data`
 
 - run `python make_dataset.py` to create a structured dataset
 
