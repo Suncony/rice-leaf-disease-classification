@@ -11,10 +11,22 @@ from torchvision.datasets import ImageFolder
 from torchvision.models import EfficientNet_B0_Weights
 from torchvision.transforms import InterpolationMode, v2
 
+# Copyable class labels:
+# ("bacterial_leaf_blight", "bacterial_leaf_streak", "bacterial_panicle_blight", "blast",
+#  "brown_spot", "dead_heart", "downy_mildew", "hispa", "normal", "tungro")
 # Class order for idx translation. Keep it the same as the model you're evaluating.
-# Possible classes are the folder names inside `data`.
-# Use `tuple(p.name for p in Path("data").iterdir() if p.is_dir())` for all classes.
-ALLOWED_CLASSES: Tuple[str, ...] = tuple(p.name for p in Path("data").iterdir() if p.is_dir())
+ALLOWED_CLASSES: Tuple[str, ...] = (
+    "bacterial_leaf_blight",
+    "bacterial_leaf_streak",
+    "bacterial_panicle_blight",
+    "blast",
+    "brown_spot",
+    "dead_heart",
+    "downy_mildew",
+    "hispa",
+    "normal",
+    "tungro",
+)
 
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_NUM_WORKERS = 0
