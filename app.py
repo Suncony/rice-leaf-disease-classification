@@ -195,7 +195,7 @@ class RiceLeafClassifierApp:
         checkpoint = self.load_checkpoint(self.checkpoint_path)
         self.class_names = self.extract_class_names(checkpoint)
         self.transform = self.resolve_transform()
-        self.model = self.build_model(checkpoint, num_classes=len(self.class_names)).to(self.device)
+        self.model = self.build_model(num_classes=len(self.class_names)).to(self.device)
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.model.eval()
 
@@ -242,7 +242,7 @@ class RiceLeafClassifierApp:
         return EVAL_TRANSFORM
 
     # Rebuild the EfficientNet-B0 classifier head so the saved weights can be loaded for inference.
-    def build_model(self, checkpoint: Dict[str, object], num_classes: int) -> nn.Module:
+    def build_model(self, num_classes: int) -> nn.Module:
         model = efficientnet_b0(weights=None)
         in_features = model.classifier[1].in_features
         model.classifier[1] = nn.Linear(in_features, num_classes)

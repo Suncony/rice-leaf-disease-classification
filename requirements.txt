@@ -1,4 +1,6 @@
 matplotlib
+ImageHash
 Pillow
+scikit-learn
 torch
 torchvision
